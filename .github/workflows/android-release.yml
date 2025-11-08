@@ -3,6 +3,7 @@ name: Android Release
 on:
   push:
     tags: ['v*', 'android-*']
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,26 +23,28 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # Cài Android SDK cho self-hosted
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      - name: Derive build metadata
-        run: |
-          NAME="${GITHUB_REF_NAME#v}"
-          echo "BUILD_NAME=$NAME" >> "$GITHUB_ENV"
-          echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
-
       - name: Flutter pub get
         run: flutter pub get
 
-      # Giữ bản build an toàn (không ký) để luôn ra artifact
+      # Build debug APK: 1 dòng, KHÔNG dùng "\" và KHÔNG truyền build-name/number
       - name: Build APK (debug, unsigned)
-        run: flutter build apk --debug \
-          --build-name "$BUILD_NAME" \
-          --build-number "$BUILD_NUMBER"
+        run: flutter build apk --debug
 
       - name: Upload artifact (APK debug)
         uses: actions/upload-artifact@v4

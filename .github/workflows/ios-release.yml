@@ -5,6 +5,7 @@ on:
     tags:
       - 'v*'
       - 'ios-*'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,50 +19,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
+      # Dùng toolchain có sẵn, KHÔNG cài gì thêm
+      - name: Verify toolchain (no install)
+        run: |
+          set -e
+          which flutter
+          flutter --version
+          xcodebuild -version
+          which pod || true
+          pod --version || true
 
       - name: Derive build metadata
         run: |
           NAME="${GITHUB_REF_NAME#v}"
-          echo "BUILD_NAME=$NAME" >> $GITHUB_ENV
-          echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
+          echo "BUILD_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
       - name: Flutter pub get
         run: flutter pub get
 
-      # CocoaPods (không sudo) cho self-hosted Mac
-      - name: Ensure RubyGems bin on PATH
-        run: |
-          echo "$HOME/.local/share/gem/ruby/*/bin" >> $GITHUB_PATH || true
-          echo "$HOME/.gem/ruby/*/bin" >> $GITHUB_PATH || true
-
-      - name: Install CocoaPods
-        run: |
-          gem install --user-install cocoapods
-          pod --version || true
-          pod repo update || true
-
+      # Build IPA unsigned; nếu fail (vd thiếu Pods) vẫn cho phép tiếp tục fallback
       - name: Build iOS (IPA unsigned)
         run: |
           flutter build ipa --release --no-codesign \
             --build-name "$BUILD_NAME" \
             --build-number "$BUILD_NUMBER" || true
 
-      # Upload: cố gắng up IPA; nếu chưa có IPA thì up Runner.app
+      # ===== Upload có điều kiện =====
       - name: Upload IPA (unsigned)
+        if: ${{ hashFiles('build/ios/ipa/*.ipa') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-unsigned
           path: build/ios/ipa/*.ipa
-          if-no-files-found: warn
 
-      - name: Upload Runner.app (fallback)
+      - name: Zip Runner.app (fallback)
+        if: ${{ hashFiles('build/ios/ipa/*.ipa') == '' && hashFiles('build/ios/iphoneos/Runner.app/Info.plist') != '' }}
+        run: |
+          cd build/ios/iphoneos
+          /usr/bin/zip -qry ../../Runner.app.zip Runner.app
+
+      - name: Upload Runner.app.zip (fallback)
+        if: ${{ hashFiles('build/ios/ipa/*.ipa') == '' && hashFiles('build/ios/iphoneos/Runner.app/Info.plist') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ios-runner-app
-          path: build/ios/iphoneos/Runner.app
-          if-no-files-found: warn
+          path: build/ios/Runner.app.zip
