@@ -1,4 +1,4 @@
-name: iOS Release (self-hosted)
+name: iOS Release
 
 on:
   push:
