@@ -1,0 +1,43 @@
+name: iOS CI (Simulator)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios-simulator:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test --platform vm
+
+      - name: Build iOS (simulator, no codesign)
+        run: flutter build ios --simulator --no-codesign
+
+      - name: Upload artifact (Runner.app)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          path: build/ios/iphonesimulator/Runner.app
+          if-no-files-found: error

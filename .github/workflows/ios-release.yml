@@ -1,0 +1,50 @@
+name: iOS Release (self-hosted)
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'ios-*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-ios:
+    # Mac mini self-hosted runner
+    runs-on: [ self-hosted, macOS ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+          cache: true
+
+      - name: Derive build metadata
+        run: |
+          NAME="${GITHUB_REF_NAME#v}"   # strip leading 'v'
+          echo "BUILD_NAME=$NAME" >> $GITHUB_ENV
+          echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
+          echo "Tag: $GITHUB_REF_NAME → name=$NAME, number=${GITHUB_RUN_NUMBER}"
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build iOS IPA (no codesign)
+        # unsigned IPA -> tránh yêu cầu cert/provision để không lỗi
+        run: |
+          flutter build ipa --release --no-codesign \
+            --build-name "$BUILD_NAME" \
+            --build-number "$BUILD_NUMBER"
+
+      - name: Upload artifact (IPA unsigned)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-unsigned
+          path: build/ios/ipa/*.ipa
+          if-no-files-found: error
