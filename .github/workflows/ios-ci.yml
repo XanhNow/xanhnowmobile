@@ -1,4 +1,4 @@
-name: iOS CI (Simulator)
+name: iOS CI
 
 on:
   push:
