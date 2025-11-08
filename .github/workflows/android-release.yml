@@ -25,7 +25,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'
+          channel: 'stable'
           cache: true
 
       - name: Derive build metadata
@@ -37,8 +37,11 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build APK (debug, unsigned)  # an toàn, không cần secrets
-        run: flutter build apk --debug
+      # Giữ bản build an toàn (không ký) để luôn ra artifact
+      - name: Build APK (debug, unsigned)
+        run: flutter build apk --debug \
+          --build-name "$BUILD_NAME" \
+          --build-number "$BUILD_NUMBER"
 
       - name: Upload artifact (APK debug)
         uses: actions/upload-artifact@v4
