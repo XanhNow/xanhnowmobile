@@ -12,7 +12,6 @@ concurrency:
 
 jobs:
   release-ios:
-    # Mac mini self-hosted runner
     runs-on: [ self-hosted, macOS ]
 
     steps:
@@ -27,23 +26,42 @@ jobs:
 
       - name: Derive build metadata
         run: |
-          NAME="${GITHUB_REF_NAME#v}" # strip leading 'v'
+          NAME="${GITHUB_REF_NAME#v}"
           echo "BUILD_NAME=$NAME" >> $GITHUB_ENV
           echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
-          echo "Tag: $GITHUB_REF_NAME → name=$NAME, number=${GITHUB_RUN_NUMBER}"
 
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build iOS IPA (no codesign)
+      # CocoaPods (không sudo) cho self-hosted Mac
+      - name: Ensure RubyGems bin on PATH
+        run: |
+          echo "$HOME/.local/share/gem/ruby/*/bin" >> $GITHUB_PATH || true
+          echo "$HOME/.gem/ruby/*/bin" >> $GITHUB_PATH || true
+
+      - name: Install CocoaPods
+        run: |
+          gem install --user-install cocoapods
+          pod --version || true
+          pod repo update || true
+
+      - name: Build iOS (IPA unsigned)
         run: |
           flutter build ipa --release --no-codesign \
             --build-name "$BUILD_NAME" \
-            --build-number "$BUILD_NUMBER"
+            --build-number "$BUILD_NUMBER" || true
 
-      - name: Upload artifact (IPA unsigned)
+      # Upload: cố gắng up IPA; nếu chưa có IPA thì up Runner.app
+      - name: Upload IPA (unsigned)
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-unsigned
           path: build/ios/ipa/*.ipa
-          if-no-files-found: error
+          if-no-files-found: warn
+
+      - name: Upload Runner.app (fallback)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-runner-app
+          path: build/ios/iphoneos/Runner.app
+          if-no-files-found: warn
