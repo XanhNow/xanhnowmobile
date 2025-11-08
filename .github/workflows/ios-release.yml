@@ -1,4 +1,4 @@
-name: iOS Release (self-hosted)
+name: iOS Release
 
 on:
   push:
@@ -22,12 +22,12 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'
+          channel: 'stable'
           cache: true
 
       - name: Derive build metadata
         run: |
-          NAME="${GITHUB_REF_NAME#v}"   # strip leading 'v'
+          NAME="${GITHUB_REF_NAME#v}" # strip leading 'v'
           echo "BUILD_NAME=$NAME" >> $GITHUB_ENV
           echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
           echo "Tag: $GITHUB_REF_NAME → name=$NAME, number=${GITHUB_RUN_NUMBER}"
@@ -36,7 +36,6 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS IPA (no codesign)
-        # unsigned IPA -> tránh yêu cầu cert/provision để không lỗi
         run: |
           flutter build ipa --release --no-codesign \
             --build-name "$BUILD_NAME" \
