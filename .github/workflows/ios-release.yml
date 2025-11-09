@@ -2,9 +2,7 @@ name: iOS Release
 
 on:
   push:
-    tags:
-      - 'v*'
-      - 'ios-*'
+    tags: ['v*','ios-*']
   workflow_dispatch:
 
 concurrency:
@@ -13,55 +11,97 @@ concurrency:
 
 jobs:
   release-ios:
-    runs-on: [ self-hosted, macOS ]
+    runs-on: [self-hosted, macOS]
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Dùng toolchain có sẵn, KHÔNG cài gì thêm
+      # KHÔNG cài gì thêm; chỉ thêm PATH brew cho job
+      - name: Add Homebrew to PATH (job)
+        run: |
+          [ -d /opt/homebrew/bin ] && echo /opt/homebrew/bin >> "$GITHUB_PATH"
+          [ -d /usr/local/bin ]   && echo /usr/local/bin   >> "$GITHUB_PATH"
+
       - name: Verify toolchain (no install)
         run: |
-          set -e
-          which flutter
           flutter --version
           xcodebuild -version
-          which pod || true
-          pod --version || true
+          pod --version
 
       - name: Derive build metadata
         run: |
-          NAME="${GITHUB_REF_NAME#v}"
-          echo "BUILD_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "BUILD_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
-      - name: Flutter pub get
-        run: flutter pub get
+      - name: Pub get (prefer offline)
+        run: flutter pub get --offline || flutter pub get
 
-      # Build IPA unsigned; nếu fail (vd thiếu Pods) vẫn cho phép tiếp tục fallback
-      - name: Build iOS (IPA unsigned)
+      # 1) Archive (không ký) — SINGLE LINE để tránh lỗi xuống dòng
+      - name: Archive app (no codesign)
+        run: flutter build ios --release --no-codesign --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" || true
+
+      # 2) Tự gói .ipa unsigned từ Runner.xcarchive
+      - name: Make unsigned IPA from xcarchive
+        id: makeipa
+        shell: bash
         run: |
-          flutter build ipa --release --no-codesign \
-            --build-name "$BUILD_NAME" \
-            --build-number "$BUILD_NUMBER" || true
+          set -e
+          ARCHIVE="build/ios/archive/Runner.xcarchive"
+          APP="$ARCHIVE/Products/Applications/Runner.app"
+          OUT_DIR="build/ios/ipa"
+          OUT_IPA="$OUT_DIR/Xanhnow-${BUILD_NAME}-${BUILD_NUMBER}-unsigned.ipa"
 
-      # ===== Upload có điều kiện =====
+          mkdir -p "$OUT_DIR"
+          if [ -d "$APP" ]; then
+            rm -rf "$OUT_DIR/Payload"
+            mkdir -p "$OUT_DIR/Payload"
+            cp -R "$APP" "$OUT_DIR/Payload/Runner.app"
+            (cd "$OUT_DIR" && /usr/bin/zip -qry "$OUT_IPA" Payload)
+            echo "ipa=$OUT_IPA" >> "$GITHUB_OUTPUT"
+            echo "Created unsigned IPA: $OUT_IPA"
+          else
+            echo "ipa=" >> "$GITHUB_OUTPUT"
+            echo "Runner.app not found in xcarchive"
+          fi
+
+      # 3) Fallback: zip Runner.app nếu chưa có .ipa
+      - name: Zip Runner.app (fallback)
+        id: zapp
+        if: ${{ steps.makeipa.outputs.ipa == '' }}
+        shell: bash
+        run: |
+          set -e
+          CANDIDATES=(
+            "build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
+            "build/ios/iphoneos/Runner.app"
+            "build/ios/Release-iphoneos/Runner.app"
+            "build/ios/Debug-iphoneos/Runner.app"
+          )
+          OUT_ZIP="build/ios/Runner.app.zip"
+          for P in "${CANDIDATES[@]}"; do
+            if [ -d "$P" ]; then
+              /usr/bin/zip -qry "$OUT_ZIP" "$P"
+              echo "appzip=$OUT_ZIP" >> "$GITHUB_OUTPUT"
+              echo "Zipped Runner.app at: $OUT_ZIP"
+              exit 0
+            fi
+          done
+          echo "appzip=" >> "$GITHUB_OUTPUT"
+          echo "No Runner.app found to zip."
+
+      # 4) Upload theo ưu tiên: IPA -> Runner.app.zip
       - name: Upload IPA (unsigned)
-        if: ${{ hashFiles('build/ios/ipa/*.ipa') != '' }}
+        if: ${{ steps.makeipa.outputs.ipa != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa-unsigned
-          path: build/ios/ipa/*.ipa
-
-      - name: Zip Runner.app (fallback)
-        if: ${{ hashFiles('build/ios/ipa/*.ipa') == '' && hashFiles('build/ios/iphoneos/Runner.app/Info.plist') != '' }}
-        run: |
-          cd build/ios/iphoneos
-          /usr/bin/zip -qry ../../Runner.app.zip Runner.app
+          path: ${{ steps.makeipa.outputs.ipa }}
 
       - name: Upload Runner.app.zip (fallback)
-        if: ${{ hashFiles('build/ios/ipa/*.ipa') == '' && hashFiles('build/ios/iphoneos/Runner.app/Info.plist') != '' }}
+        if: ${{ steps.makeipa.outputs.ipa == '' && steps.zapp.outputs.appzip != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ios-runner-app
-          path: build/ios/Runner.app.zip
+          path: ${{ steps.zapp.outputs.appzip }}
+
+

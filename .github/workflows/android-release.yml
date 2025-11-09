@@ -2,7 +2,7 @@ name: Android Release
 
 on:
   push:
-    tags: ['v*', 'android-*']
+    tags: ['v*','android-*']
   workflow_dispatch:
 
 concurrency:
@@ -14,41 +14,65 @@ jobs:
     runs-on: [self-hosted, Linux]
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      # Cài Android SDK cho self-hosted
-      - name: Set up Android SDK
+      - name: Setup Android SDK (v3)
         uses: android-actions/setup-android@v3
         with:
-          api-level: 34
-          build-tools: 34.0.0
+          accept-android-sdk-licenses: true
+          packages: |
+            platform-tools
+            platforms;android-34
+            build-tools;34.0.0
 
-      - name: Accept Android licenses
-        run: yes | sdkmanager --licenses
+      - name: Derive build metadata
+        run: |
+          echo "BUILD_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
-          cache: true
+      - name: Pub get (prefer offline)
+        run: flutter pub get --offline || flutter pub get
 
-      - name: Flutter pub get
-        run: flutter pub get
+      - name: Build AAB (release)
+        id: aab
+        continue-on-error: true
+        run: |
+          flutter build appbundle --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          echo "path=build/app/outputs/bundle/release/app-release.aab" >> "$GITHUB_OUTPUT"
 
-      # Build debug APK: 1 dòng, KHÔNG dùng "\" và KHÔNG truyền build-name/number
-      - name: Build APK (debug, unsigned)
+      - name: Build APK (release)
+        id: apkr
+        if: ${{ steps.aab.outcome != 'success' }}
+        continue-on-error: true
+        run: |
+          flutter build apk --release --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER"
+          APK=""
+          [ -f build/app/outputs/flutter-apk/app-release.apk ] && APK=build/app/outputs/flutter-apk/app-release.apk
+          [ -z "$APK" ] && [ -f build/app/outputs/apk/release/app-release.apk ] && APK=build/app/outputs/apk/release/app-release.apk
+          [ -z "$APK" ] && [ -f build/app/outputs/flutter-apk/app-release-unsigned.apk ] && APK=build/app/outputs/flutter-apk/app-release-unsigned.apk
+          echo "path=$APK" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK (debug fallback)
+        if: ${{ steps.aab.outcome != 'success' && steps.apkr.outputs.path == '' }}
         run: flutter build apk --debug
 
-      - name: Upload artifact (APK debug)
+      - name: Upload AAB (release)
+        if: ${{ steps.aab.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-aab
+          path: build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload APK (release)
+        if: ${{ steps.aab.outcome != 'success' && steps.apkr.outputs.path != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: ${{ steps.apkr.outputs.path }}
+
+      - name: Upload APK (debug fallback)
+        if: ${{ steps.aab.outcome != 'success' && steps.apkr.outputs.path == '' }}
         uses: actions/upload-artifact@v4
         with:
           name: android-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
-          if-no-files-found: error
