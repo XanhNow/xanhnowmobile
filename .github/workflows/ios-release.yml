@@ -1,0 +1,106 @@
+name: iOS Release
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+      - 'ios-*'
+    paths:
+      - 'ios/**'
+      - 'lib/**'
+      - 'assets/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/ios-release.yml'
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-ios:
+    runs-on: [ self-hosted, macOS ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify toolchain (no install)
+        run: |
+          flutter --version
+          xcodebuild -version
+          pod --version || true
+
+      - name: Derive build metadata
+        id: meta
+        shell: bash
+        run: |
+          # BUILD_NAME: từ tag (bỏ 'v') hoặc từ pubspec.yaml (version: x.y.z)
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            NAME="${GITHUB_REF_NAME#v}"
+          else
+            NAME="$(grep -E '^version:\s*[0-9]+\.[0-9]+\.[0-9]+' pubspec.yaml | head -n1 | sed -E 's/version:\s*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+            [[ -z "$NAME" ]] && NAME="0.0.0"
+          fi
+          echo "BUILD_NAME=$NAME" >> $GITHUB_ENV
+
+          # BUILD_NUMBER: số sau dấu '+' trong pubspec.yaml, nếu không có thì dùng RUN_NUMBER
+          NUM="$(grep -E '^version:\s*[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+' pubspec.yaml | sed -E 's/.*\+([0-9]+)/\1/' | head -n1)"
+          [[ -z "$NUM" ]] && NUM="${GITHUB_RUN_NUMBER}"
+          echo "BUILD_NUMBER=$NUM" >> $GITHUB_ENV
+
+          echo "Resolved BUILD_NAME=$NAME, BUILD_NUMBER=$NUM"
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Clean caches
+        run: |
+          rm -rf ~/Library/Developer/Xcode/DerivedData || true
+          flutter clean
+
+      - name: Strip default iOS placeholders (safety)
+        shell: bash
+        run: |
+          # Xoá LaunchImage placeholder nếu còn
+          rm -rf ios/Runner/Assets.xcassets/LaunchImage.imageset || true
+          # Ép dùng LaunchScreen storyboard, xoá UILaunchImages di sản
+          /usr/libexec/PlistBuddy -c "Set :UILaunchStoryboardName LaunchScreen" ios/Runner/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Delete :UILaunchImages" ios/Runner/Info.plist || true
+
+      - name: Build iOS (no codesign)
+        run: flutter build ipa --release --no-codesign --build-name "$BUILD_NAME" --build-number "$BUILD_NUMBER" || true
+
+      - name: Find artifacts
+        id: find
+        shell: bash
+        run: |
+          IPA=$(ls build/ios/ipa/*.ipa 2>/dev/null | head -n1 || true)
+          APP=$(ls -d build/ios/iphoneos/Runner.app 2>/dev/null | head -n1 || true)
+          echo "ipa=$IPA" >> $GITHUB_OUTPUT
+          echo "app=$APP" >> $GITHUB_OUTPUT
+          echo "IPA=$IPA"
+          echo "APP=$APP"
+
+      - name: Upload IPA (unsigned)
+        if: ${{ steps.find.outputs.ipa != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-unsigned
+          path: ${{ steps.find.outputs.ipa }}
+          if-no-files-found: error
+
+      - name: Zip Runner.app (fallback)
+        if: ${{ steps.find.outputs.ipa == '' && steps.find.outputs.app != '' }}
+        run: |
+          cd "$(dirname "${{ steps.find.outputs.app }}")"
+          /usr/bin/zip -qry Runner.app.zip "$(basename "${{ steps.find.outputs.app }}")"
+
+      - name: Upload Runner.app.zip (fallback)
+        if: ${{ steps.find.outputs.ipa == '' && steps.find.outputs.app != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-runner-app
+          path: build/ios/iphoneos/Runner.app.zip
+          if-no-files-found: error
