@@ -2,7 +2,7 @@ name: iOS Release
 
 on:
   push:
-    tags: ['ios-*', 'v*']   # đẩy tag ios-* hay v* sẽ chạy
+    tags: ['ios-*', 'v*']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,28 +36,42 @@ jobs:
           rm -rf ~/Library/Developer/Xcode/DerivedData || true
           flutter clean
 
-      # Quan trọng: build ios (không codesign) -> sẽ có build/ios/iphoneos/Runner.app
-      - name: Build iOS (no codesign)
+      # Tạo .xcarchive (đầy đủ) – không ký
+      - name: Build archive (no codesign)
         run: |
           set -e
-          flutter build ios --release --no-codesign \
+          flutter build ipa --release --no-codesign \
             --build-name "$BUILD_NAME" \
             --build-number "$BUILD_NUMBER"
 
-      - name: Zip Runner.app
+      # Upload .xcarchive để mở trực tiếp trong Xcode Organizer
+      - name: Upload xcarchive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcarchive
+          path: build/ios/archive/Runner.xcarchive
+          if-no-files-found: error
+
+      # Trích Runner.app từ .xcarchive và zip làm artifact nhẹ
+      - name: Zip Runner.app (from archive)
         run: |
           set -e
-          APP="build/ios/iphoneos/Runner.app"
-          if [ ! -d "$APP" ]; then
-            echo "Runner.app not found at $APP"; exit 1
+          APP=$(find "build/ios/archive/Runner.xcarchive/Products/Applications" -maxdepth 1 -name "Runner.app" -type d | head -n1)
+          if [ -z "$APP" ]; then
+            echo "Runner.app not found in xcarchive"; exit 1
           fi
-          cd build/ios/iphoneos
-          /usr/bin/zip -qry Runner.app.zip Runner.app
-          ls -lh Runner.app.zip
+          mkdir -p build/ios/iphoneos
+          /usr/bin/zip -qry "build/ios/iphoneos/Runner.app.zip" "$APP"
 
-      - name: Upload artifact
+      - name: Upload Runner.app.zip
         uses: actions/upload-artifact@v4
         with:
           name: ios-runner-app
           path: build/ios/iphoneos/Runner.app.zip
           if-no-files-found: error
+
+      # Hiển thị size để mình yên tâm
+      - name: Sanity check sizes
+        run: |
+          du -sh build/ios/archive/Runner.xcarchive || true
+          du -sh build/ios/iphoneos/Runner.app.zip || true
