@@ -2,33 +2,59 @@ name: iOS CI
 
 on:
   push:
-    branches: [ main ]
+    branches: ["**"]
   pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  ci-ios:
-    runs-on: [ self-hosted, macOS ]
+  ios-ci:
+    runs-on: [self-hosted, macOS]   # đổi nếu label runner khác
+    timeout-minutes: 40
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Verify toolchain (no install)
+      - name: Setup Ruby (CocoaPods)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Install CocoaPods
+        working-directory: ios
         run: |
-          flutter --version
-          xcodebuild -version
-          pod --version || true
+          gem install cocoapods --no-document || true
+          pod repo update || true
+          pod install
 
-      - name: Analyze
-        run: flutter analyze
+      - name: Analyze & Test
+        run: |
+          flutter analyze
+          flutter test
 
-      - name: Test
-        run: flutter test --platform vm
+      - name: Build iOS (simulator debug, no-sign)
+        run: flutter build ios --debug --simulator
 
-      # Build for Simulator để chắc chắn compile OK, không cần codesign
-      - name: Build iOS (simulator)
-        run: flutter build ios --simulator --debug
+      - name: Upload CI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ci-artifacts
+          path: |
+            **/build/**/log*
+            ios/Pods/Manifest.lock
+          retention-days: 7
