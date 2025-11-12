@@ -51,7 +51,8 @@ class _LoginPageState extends State<LoginPage> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
                   child: Column(
@@ -75,8 +76,14 @@ class _LoginPageState extends State<LoginPage> {
                         obscureText: _obscure,
                         icon: Icons.lock_rounded,
                         suffix: IconButton(
-                          icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off, color: Colors.white70),
-                          onPressed: () => setState(() => _obscure = !_obscure),
+                          icon: Icon(
+                            _obscure
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: Colors.white70,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure),
                         ),
                       ),
                       const SizedBox(height: 22),
@@ -84,23 +91,48 @@ class _LoginPageState extends State<LoginPage> {
                       _GlowButton(
                         onPressed: _loading ? null : _doLogin,
                         child: _loading
-                            ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text('ĐĂNG NHẬP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'ĐĂNG NHẬP',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                       ),
 
                       const SizedBox(height: 14),
-                      const Text('Chưa có tài khoản?', style: TextStyle(color: Colors.white70)),
+                      const Text(
+                        'Chưa có tài khoản?',
+                        style: TextStyle(color: Colors.white70),
+                      ),
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
                         icon: const Icon(Icons.person_add_alt_1_rounded),
                         label: const Text('Đăng ký ngay'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF7ED9FF),
-                          side: BorderSide(color: const Color(0xFF7ED9FF).withOpacity(0.6)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                          side: BorderSide(
+                            color: const Color(0xFF7ED9FF)
+                                .withValues(alpha: 0.6),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 16,
+                          ),
                         ),
-                        onPressed: () => Navigator.pushNamed(context, '/register'),
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/register'),
                       ),
                     ],
                   ),
@@ -119,7 +151,10 @@ class _LoginPageState extends State<LoginPage> {
                 child: Text(
                   'Bằng cách tiếp tục, bạn đồng ý với\nĐiều khoản và Chính sách của OOXXI.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.65)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.65),
+                  ),
                 ),
               ),
             ),
@@ -148,7 +183,7 @@ class _LoginGradientBg extends StatelessWidget {
   }
 }
 
-/// Helper item cho vòng icon (tương thích cả Dart cũ)
+/// Helper item cho vòng icon
 class _RingItem {
   final Widget child;
   final double deg;
@@ -175,12 +210,26 @@ class _LoginHeroCluster extends StatelessWidget {
     const sizeOthers = 36.0;
 
     final items = <_RingItem>[
-      _RingItem(const _NeonIcon(icon: Icons.person, size: sizeTop), -90), // đỉnh
-      _RingItem(const _NeonIcon(icon: Icons.flight_rounded, size: sizeOthers), -30), // trên-phải
-      _RingItem(const _NeonIcon(icon: Icons.directions_car_filled_rounded, size: sizeOthers), 30), // dưới-phải
-      _RingItem(const _NeonIcon(icon: Icons.directions_bus_filled_rounded, size: sizeOthers), 90), // đáy (bus)
-      _RingItem(const _NeonIcon(icon: Icons.local_shipping_rounded, size: sizeOthers), 150), // dưới-trái (van)
-      _RingItem(const _NeonIcon(icon: Icons.motorcycle_rounded, size: sizeOthers), -150), // trên-trái (moto)
+      _RingItem(
+          const _NeonIcon(icon: Icons.person, size: sizeTop), -90), // đỉnh
+      _RingItem(
+          const _NeonIcon(icon: Icons.flight_rounded, size: sizeOthers),
+          -30), // trên-phải
+      _RingItem(
+          const _NeonIcon(icon: Icons.directions_car_filled_rounded,
+              size: sizeOthers),
+          30), // dưới-phải
+      _RingItem(
+          const _NeonIcon(
+              icon: Icons.directions_bus_filled_rounded, size: sizeOthers),
+          90), // đáy (bus)
+      _RingItem(
+          const _NeonIcon(
+              icon: Icons.local_shipping_rounded, size: sizeOthers),
+          150), // dưới-trái (van)
+      _RingItem(
+          const _NeonIcon(icon: Icons.motorcycle_rounded, size: sizeOthers),
+          -150), // trên-trái (moto)
     ];
 
     return SizedBox(
@@ -188,7 +237,8 @@ class _LoginHeroCluster extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          for (final it in items) Align(alignment: _polar(orbit, it.deg), child: it.child),
+          for (final it in items)
+            Align(alignment: _polar(orbit, it.deg), child: it.child),
 
           // Logo trung tâm: ưu tiên asset, fallback sang chữ gradient
           SizedBox(
@@ -241,7 +291,8 @@ class _WelcomeTitle extends StatelessWidget {
       children: [
         Text('Chào mừng tới OOXXI', style: _glow(22)),
         const SizedBox(height: 6),
-        Text('Kết nối hành trình của bạn.', style: _glow(16, weight: FontWeight.w600)),
+        Text('Kết nối hành trình của bạn.',
+            style: _glow(16, weight: FontWeight.w600)),
       ],
     );
   }
@@ -257,14 +308,20 @@ class _NeonIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
-        boxShadow: [BoxShadow(color: Color(0x8044E59F), blurRadius: 10, spreadRadius: 1)],
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x8044E59F),
+            blurRadius: 10,
+            spreadRadius: 1,
+          )
+        ],
       ),
       child: Icon(icon, size: size, color: _LoginHeroCluster.neon),
     );
   }
 }
 
-/// Ô nhập & nút phát sáng (tái dùng)
+/// Ô nhập nền tối bo tròn
 class _DarkField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -274,7 +331,6 @@ class _DarkField extends StatelessWidget {
   final Widget? suffix;
 
   const _DarkField({
-    super.key,
     required this.controller,
     required this.label,
     this.keyboardType,
@@ -297,37 +353,49 @@ class _DarkField extends StatelessWidget {
         labelStyle: const TextStyle(color: Colors.white70),
         filled: true,
         fillColor: const Color(0xFF0C2621),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFF154A3E)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF29CC97), width: 1.2),
+          borderSide:
+              const BorderSide(color: Color(0xFF29CC97), width: 1.2),
         ),
       ),
     );
   }
 }
 
+/// Nút phát sáng
 class _GlowButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final Widget child;
-  const _GlowButton({super.key, required this.onPressed, required this.child});
+  const _GlowButton({required this.onPressed, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
-        boxShadow: [BoxShadow(color: Color(0x8036D39E), blurRadius: 18, spreadRadius: 1, offset: Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x8036D39E),
+            blurRadius: 18,
+            spreadRadius: 1,
+            offset: Offset(0, 6),
+          )
+        ],
       ),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2AAE74),
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         onPressed: onPressed,
         child: child,

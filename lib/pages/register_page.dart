@@ -52,16 +52,13 @@ class _RegisterPageState extends State<RegisterPage>
     _toastShowing = true;
 
     final overlay = Overlay.of(context);
-    if (overlay == null) {
-      _toastShowing = false;
-      return;
-    }
 
     final controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 320),
     );
-    final curve = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
+    final curve =
+        CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
 
     late OverlayEntry entry;
     entry = OverlayEntry(builder: (ctx) {
@@ -84,9 +81,9 @@ class _RegisterPageState extends State<RegisterPage>
     });
 
     overlay.insert(entry);
-    await controller.forward();                     // hiện lên
+    await controller.forward(); // hiện lên
     await Future.delayed(const Duration(seconds: 3));
-    await controller.reverse();                     // mờ dần
+    await controller.reverse(); // mờ dần
     entry.remove();
     controller.dispose();
     _toastShowing = false;
@@ -95,12 +92,14 @@ class _RegisterPageState extends State<RegisterPage>
   Future<void> _doRegister() async {
     final err = _validate();
     if (err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(err)));
       return;
     }
 
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 800)); // TODO: gọi API đăng ký thật
+    await Future.delayed(
+        const Duration(milliseconds: 800)); // TODO: gọi API đăng ký thật
     setState(() => _loading = false);
 
     if (!mounted) return;
@@ -117,7 +116,8 @@ class _RegisterPageState extends State<RegisterPage>
         SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Column(
@@ -140,10 +140,13 @@ class _RegisterPageState extends State<RegisterPage>
                       icon: Icons.lock_rounded,
                       suffix: IconButton(
                         icon: Icon(
-                          _obscure1 ? Icons.visibility : Icons.visibility_off,
+                          _obscure1
+                              ? Icons.visibility
+                              : Icons.visibility_off,
                           color: Colors.white70,
                         ),
-                        onPressed: () => setState(() => _obscure1 = !_obscure1),
+                        onPressed: () =>
+                            setState(() => _obscure1 = !_obscure1),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -154,10 +157,13 @@ class _RegisterPageState extends State<RegisterPage>
                       icon: Icons.lock_reset_rounded,
                       suffix: IconButton(
                         icon: Icon(
-                          _obscure2 ? Icons.visibility : Icons.visibility_off,
+                          _obscure2
+                              ? Icons.visibility
+                              : Icons.visibility_off,
                           color: Colors.white70,
                         ),
-                        onPressed: () => setState(() => _obscure2 = !_obscure2),
+                        onPressed: () =>
+                            setState(() => _obscure2 = !_obscure2),
                       ),
                     ),
                     const SizedBox(height: 22),
@@ -216,7 +222,11 @@ class _BlueToast extends StatelessWidget {
           color: const Color(0xCC1E88E5), // xanh dương + opacity
           borderRadius: BorderRadius.circular(16),
           boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 6)),
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 12,
+              offset: Offset(0, 6),
+            ),
           ],
         ),
         child: Row(
@@ -227,7 +237,11 @@ class _BlueToast extends StatelessWidget {
             Expanded(
               child: Text(
                 message,
-                style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.2),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  height: 1.2,
+                ),
               ),
             ),
           ],
@@ -259,21 +273,23 @@ class _RegisterTitle extends StatelessWidget {
   const _RegisterTitle();
   @override
   Widget build(BuildContext context) {
-    return Column(children: const [
-      Text(
-        'Xin mời đăng ký',
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          color: Colors.white,
-          shadows: [
-            Shadow(color: Colors.white70, blurRadius: 14),
-            Shadow(color: Colors.white24, blurRadius: 28),
-            Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 1)),
-          ],
+    return Column(
+      children: const [
+        Text(
+          'Xin mời đăng ký',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            shadows: [
+              Shadow(color: Colors.white70, blurRadius: 14),
+              Shadow(color: Colors.white24, blurRadius: 28),
+              Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 1)),
+            ],
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 }
 
@@ -286,7 +302,6 @@ class _RegDarkField extends StatelessWidget {
   final IconData? icon;
   final Widget? suffix;
   const _RegDarkField({
-    super.key,
     required this.controller,
     required this.label,
     this.keyboardType,
@@ -309,14 +324,16 @@ class _RegDarkField extends StatelessWidget {
         labelStyle: const TextStyle(color: Colors.white70),
         filled: true,
         fillColor: const Color(0xFF0C2621),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFF154A3E)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF29CC97), width: 1.2),
+          borderSide:
+              const BorderSide(color: Color(0xFF29CC97), width: 1.2),
         ),
       ),
     );
@@ -327,19 +344,28 @@ class _RegDarkField extends StatelessWidget {
 class _RegGlowButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final Widget child;
-  const _RegGlowButton({super.key, required this.onPressed, required this.child});
+  const _RegGlowButton({required this.onPressed, required this.child});
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
-        boxShadow: [BoxShadow(color: Color(0x8036D39E), blurRadius: 18, spreadRadius: 1, offset: Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x8036D39E),
+            blurRadius: 18,
+            spreadRadius: 1,
+            offset: Offset(0, 6),
+          )
+        ],
       ),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF2AAE74),
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         onPressed: onPressed,
         child: child,
