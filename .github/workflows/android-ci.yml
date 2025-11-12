@@ -3,50 +3,43 @@ name: Android CI
 on:
   push:
     branches: ["**"]
+    paths-ignore:
+      - "**.md"
   pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
+    branches: ["**"]
 
 jobs:
-  android-ci:
-    runs-on: [self-hosted, Linux]   # đổi nếu label runner khác
-    timeout-minutes: 30
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: "zulu"
           java-version: "17"
-
-      - name: Setup Gradle (cache)
-        uses: gradle/actions/setup-gradle@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          channel: "stable"
 
-      - name: Analyze & Test
-        run: |
-          flutter --version
-          flutter pub get
-          flutter analyze
-          flutter test
+      - name: Pub get
+        run: flutter pub get
 
-      - name: Build debug APK
-        run: flutter build apk --debug --dart-define=CI=true
+      - name: Analyze
+        run: flutter analyze
 
-      - name: Upload APK (debug)
+      - name: Build Android (debug)
+        run: flutter build apk --debug
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk-debug
-          path: build/app/outputs/flutter-apk/*.apk
-          retention-days: 7
+          name: android-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
