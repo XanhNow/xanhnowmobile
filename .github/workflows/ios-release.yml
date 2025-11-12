@@ -1,74 +1,132 @@
 name: iOS Release
 
 on:
-  workflow_dispatch:
   push:
-    tags:
-      - "ios-v*"
+    tags: ["v*", "ios-v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  release-ios:
-    runs-on: [self-hosted, macOS]
-    timeout-minutes: 90
+  ios-release:
+    runs-on: [self-hosted, macOS]   # sửa nếu label runner khác
+    timeout-minutes: 60
+    env:
+      # Cờ boolean để dùng trong if (đỡ VS Code cảnh báo)
+      HAS_ASC_CREDS: ${{ secrets.ASC_KEY_ID != '' && secrets.ASC_ISSUER_ID != '' && secrets.ASC_KEY_P8_BASE64 != '' }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - name: Setup Ruby (Fastlane & CocoaPods)
+        uses: ruby/setup-ruby@v1
         with:
-          distribution: "zulu"
-          java-version: "17"
+          ruby-version: "3.2"
+          bundler-cache: true
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: "stable"
+          channel: stable
 
-      - name: Pub get
+      - name: Install CocoaPods & Fastlane
+        working-directory: ios
+        run: |
+          gem install cocoapods fastlane --no-document || true
+          pod repo update || true
+          pod install
+
+      # ==== Preflight: kiểm tra secrets ký iOS ====
+      - name: Preflight secrets (iOS signing)
+        env:
+          P12_B64: ${{ secrets.IOS_P12_BASE64 }}
+          P12_PWD: ${{ secrets.IOS_P12_PASSWORD }}
+          PROF_B64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          for v in P12_B64 P12_PWD PROF_B64; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Missing required iOS signing secret: $v"
+              echo "Need: IOS_P12_BASE64 / IOS_P12_PASSWORD / IOS_PROVISIONING_PROFILE_BASE64"
+              exit 1
+            fi
+          done
+
+      - name: Import iOS signing cert (.p12)
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.IOS_P12_BASE64 }}
+          p12-password: ${{ secrets.IOS_P12_PASSWORD }}
+
+      - name: Install provisioning profile
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 -D > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+
+      - name: Create exportOptions.plist (App Store)
+        run: |
+          cat > ios/exportOptions.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>uploadBitcode</key><false/>
+          </dict></plist>
+          PLIST
+
+      - name: Dependencies
         run: flutter pub get
 
-      # Chuẩn bị ASC secrets (tùy chọn)
-      - name: Prepare App Store Connect secrets
-        id: asc
-        shell: bash
-        run: |
-          HAS="false"
-          if [[ -n "${{ secrets.ASC_KEY_ID }}" && -n "${{ secrets.ASC_ISSUER_ID }}" && -n "${{ secrets.ASC_KEY_P8_BASE64 }}" ]]; then
-            HAS="true"
-            echo "key_id=${{ secrets.ASC_KEY_ID }}" >> "$GITHUB_OUTPUT"
-            echo "issuer_id=${{ secrets.ASC_ISSUER_ID }}" >> "$GITHUB_OUTPUT"
-            echo "private_key<<EOF" >> "$GITHUB_OUTPUT"
-            echo "${{ secrets.ASC_KEY_P8_BASE64 }}" | base64 --decode >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
-          fi
-          echo "have_secrets=$HAS" >> "$GITHUB_OUTPUT"
+      - name: Build IPA (release)
+        run: flutter build ipa --export-options-plist=ios/exportOptions.plist --build-number "$GITHUB_RUN_NUMBER"
 
-      # Build IPA: có secrets thì build ký (máy Mac phải có signing), không có thì --no-codesign
-      - name: Build IPA
-        shell: bash
-        run: |
-          if [[ "${{ steps.asc.outputs.have_secrets }}" == "true" ]]; then
-            flutter build ipa --release
-          else
-            flutter build ipa --release --no-codesign
-          fi
-
-      - name: Upload artifact
+      - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-artifacts
-          path: |
-            build/ios/ipa/*.ipa
-            build/ios/archive/*.xcarchive
-          if-no-files-found: warn
+          name: ios-ipa-release
+          path: build/ios/ipa/*.ipa
+          retention-days: 30
 
-      - name: Upload to TestFlight
-        if: ${{ steps.asc.outputs.have_secrets == 'true' }}
-        uses: apple-actions/upload-testflight@v1
+      - name: Create GitHub Release (attach IPA)
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
         with:
-          app-path: build/ios/ipa/*.ipa
-          issuer-id: ${{ steps.asc.outputs.issuer_id }}
-          api-key-id: ${{ steps.asc.outputs.key_id }}
-          api-private-key: ${{ steps.asc.outputs.private_key }}
+          files: build/ios/ipa/*.ipa
+          generate_release_notes: true
+
+      # ==== Optional: TestFlight qua API Key (3 secrets) ====
+      - name: Write ASC API key JSON
+        if: ${{ env.HAS_ASC_CREDS == 'true' }}
+        run: |
+          echo "${{ secrets.ASC_KEY_P8_BASE64 }}" | base64 -D > asc_key.p8
+          awk 'BEGIN{printf("{");printf("\"key_id\":\"%s\",",ENVIRON["ASC_KEY_ID"]);printf("\"issuer_id\":\"%s\",",ENVIRON["ASC_ISSUER_ID"]);printf("\"key\":\"");} {gsub(/\r/,"");printf("%s\\n",$0);} END{printf("\"}");}' asc_key.p8 > asc_api_key.json
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+
+      - name: Upload to TestFlight (pilot)
+        if: ${{ env.HAS_ASC_CREDS == 'true' }}
+        run: |
+          fastlane pilot upload \
+            --api_key_path asc_api_key.json \
+            --ipa build/ios/ipa/*.ipa \
+            --skip_submission true \
+            --skip_waiting_for_build_processing true
+
+      # ==== Cleanup nhạy cảm ====
+      - name: Secure cleanup
+        if: always()
+        run: |
+          rm -f asc_key.p8 asc_api_key.json || true
+          rm -f ios/exportOptions.plist || true
+          rm -f ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision || true
