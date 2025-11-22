@@ -1,7 +1,14 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import '../core/utils/error_utils.dart';
+import '../features/auth/data/auth_api_service.dart';
+import '../features/auth/data/models/register_request.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
+
   @override
   State<RegisterPage> createState() => _RegisterPageState();
 }
@@ -16,6 +23,7 @@ class _RegisterPageState extends State<RegisterPage>
   bool _obscure2 = true;
   bool _loading = false;
   bool _toastShowing = false;
+  bool _cancelRequested = false;
 
   @override
   void dispose() {
@@ -30,20 +38,19 @@ class _RegisterPageState extends State<RegisterPage>
     final pw = pwController.text;
     final pw2 = pw2Controller.text;
 
-    if (phone.isEmpty) return 'Vui lòng nhập Số điện thoại';
+    if (phone.isEmpty) return 'Vui long nhap so dien thoai';
     if (pw.isEmpty || pw2.isEmpty) {
-      return 'Vui lòng nhập Mật khẩu và Nhập lại mật khẩu';
+      return 'Vui long nhap mat khau va nhap lai mat khau';
     }
 
     final pwOkLen = pw.length >= 8;
     final pwHasUpper = RegExp(r'[A-Z]').hasMatch(pw);
-    // Ít nhất 1 ký tự đặc biệt: ký tự KHÔNG phải chữ hoặc số
     final pwHasSpecial = RegExp(r'[^A-Za-z0-9]').hasMatch(pw);
 
     if (!pwOkLen || !pwHasUpper || !pwHasSpecial) {
-      return 'Mật khẩu ≥ 8, có chữ IN HOA và ký tự đặc biệt';
+      return 'Mat khau >=8 ky tu, co chu HOA va ky tu dac biet';
     }
-    if (pw != pw2) return 'Mật khẩu nhập lại không khớp';
+    if (pw != pw2) return 'Mat khau nhap lai khong khop';
     return null;
   }
 
@@ -52,7 +59,6 @@ class _RegisterPageState extends State<RegisterPage>
     _toastShowing = true;
 
     final overlay = Overlay.of(context);
-
     final controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 320),
@@ -62,7 +68,7 @@ class _RegisterPageState extends State<RegisterPage>
 
     late OverlayEntry entry;
     entry = OverlayEntry(builder: (ctx) {
-      final topPad = 16.0 + MediaQuery.of(ctx).viewPadding.top; // tránh tai thỏ
+      final topPad = 16.0 + MediaQuery.of(ctx).viewPadding.top;
       return Positioned(
         left: 24,
         right: 24,
@@ -71,7 +77,7 @@ class _RegisterPageState extends State<RegisterPage>
           opacity: curve,
           child: SlideTransition(
             position: Tween<Offset>(
-              begin: const Offset(0, -0.15), // trượt từ trên xuống
+              begin: const Offset(0, -0.15),
               end: Offset.zero,
             ).animate(curve),
             child: _BlueToast(message: message),
@@ -81,9 +87,9 @@ class _RegisterPageState extends State<RegisterPage>
     });
 
     overlay.insert(entry);
-    await controller.forward(); // hiện lên
+    await controller.forward();
     await Future.delayed(const Duration(seconds: 3));
-    await controller.reverse(); // mờ dần
+    await controller.reverse();
     entry.remove();
     controller.dispose();
     _toastShowing = false;
@@ -92,122 +98,174 @@ class _RegisterPageState extends State<RegisterPage>
   Future<void> _doRegister() async {
     final err = _validate();
     if (err != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(err)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(err)),
+      );
       return;
     }
 
-    setState(() => _loading = true);
-    await Future.delayed(
-        const Duration(milliseconds: 800)); // TODO: gọi API đăng ký thật
-    setState(() => _loading = false);
+    final phone = phoneController.text.trim();
+    final pw = pwController.text;
+    final pw2 = pw2Controller.text;
 
-    if (!mounted) return;
-    await _showSuccessToast('Bạn đã đăng ký thành công.');
-    if (!mounted) return;
-    Navigator.of(context).pop(); // quay lại Login
+    setState(() {
+      _loading = true;
+      _cancelRequested = false;
+    });
+
+    try {
+      if (_cancelRequested) return;
+      final payload = await AuthApiService.instance.register(
+        RegisterRequest(
+          phoneNumber: phone,
+          password: pw,
+          confirmPassword: pw2,
+          fullName: 'Guest',
+        ),
+      );
+
+      if (!mounted || _cancelRequested) return;
+      await _showSuccessToast('Ban da dang ky thanh cong.');
+      if (!mounted || _cancelRequested) return;
+      Navigator.of(context).pop(payload);
+    } catch (e) {
+      // Luon in log de bat loi tren release
+      if (e is DioException) {
+        // ignore: avoid_print
+        print('Register failed Dio: ${e.message} data=${e.response?.data}');
+      } else {
+        // ignore: avoid_print
+        print('Register failed: $e');
+      }
+      if (!mounted) return;
+      final message = ErrorUtils.toUserMessage(e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(children: [
-        const _RegisterGradientBg(),
-        SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
+      body: Stack(
+        children: [
+          const _RegisterGradientBg(),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const _RegisterTitle(),
+                      const SizedBox(height: 20),
+                      _RegDarkField(
+                        controller: phoneController,
+                        label: 'So dien thoai (bat buoc)',
+                        keyboardType: TextInputType.phone,
+                        icon: Icons.phone_iphone,
+                      ),
+                      const SizedBox(height: 14),
+                      _RegDarkField(
+                        controller: pwController,
+                        label: 'Mat khau',
+                        obscureText: _obscure1,
+                        icon: Icons.lock_rounded,
+                        suffix: IconButton(
+                          icon: Icon(
+                            _obscure1 ? Icons.visibility : Icons.visibility_off,
+                            color: Colors.white70,
+                          ),
+                          onPressed: () => setState(() => _obscure1 = !_obscure1),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _RegDarkField(
+                        controller: pw2Controller,
+                        label: 'Nhap lai mat khau',
+                        obscureText: _obscure2,
+                        icon: Icons.lock_reset_rounded,
+                        suffix: IconButton(
+                          icon: Icon(
+                            _obscure2 ? Icons.visibility : Icons.visibility_off,
+                            color: Colors.white70,
+                          ),
+                          onPressed: () => setState(() => _obscure2 = !_obscure2),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      _RegGlowButton(
+                        onPressed: _loading ? null : _doRegister,
+                        child: _loading
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'DANG KY',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                          'Quay lai dang nhap',
+                          style: TextStyle(color: Color(0xFF7ED9FF)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (_loading)
+            Container(
+              color: Colors.black54,
+              child: Center(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const _RegisterTitle(), // "Xin mời đăng ký"
-                    const SizedBox(height: 20),
-
-                    _RegDarkField(
-                      controller: phoneController,
-                      label: 'Số điện thoại (Bắt buộc)',
-                      keyboardType: TextInputType.phone,
-                      icon: Icons.phone_iphone,
-                    ),
-                    const SizedBox(height: 14),
-                    _RegDarkField(
-                      controller: pwController,
-                      label: 'Mật khẩu',
-                      obscureText: _obscure1,
-                      icon: Icons.lock_rounded,
-                      suffix: IconButton(
-                        icon: Icon(
-                          _obscure1
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                          color: Colors.white70,
-                        ),
-                        onPressed: () =>
-                            setState(() => _obscure1 = !_obscure1),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _RegDarkField(
-                      controller: pw2Controller,
-                      label: 'Nhập lại mật khẩu',
-                      obscureText: _obscure2,
-                      icon: Icons.lock_reset_rounded,
-                      suffix: IconButton(
-                        icon: Icon(
-                          _obscure2
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                          color: Colors.white70,
-                        ),
-                        onPressed: () =>
-                            setState(() => _obscure2 = !_obscure2),
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-
-                    _RegGlowButton(
-                      onPressed: _loading ? null : _doRegister,
-                      child: _loading
-                          ? const SizedBox(
-                              height: 22,
-                              width: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'ĐĂNG KÝ',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                    ),
-
+                    const CircularProgressIndicator(),
                     const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Quay lại đăng nhập',
-                        style: TextStyle(color: Color(0xFF7ED9FF)),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _cancelRequested = true;
+                          _loading = false;
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[800],
+                        foregroundColor: Colors.white,
                       ),
+                      child: const Text('Huy'),
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }
 
-/// ===== Toast xanh dương ở phía trên (opacity + shadow + bo tròn) =====
 class _BlueToast extends StatelessWidget {
   final String message;
   const _BlueToast({required this.message});
@@ -219,7 +277,7 @@ class _BlueToast extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xCC1E88E5), // xanh dương + opacity
+          color: const Color(0xCC1E88E5),
           borderRadius: BorderRadius.circular(16),
           boxShadow: const [
             BoxShadow(
@@ -251,9 +309,9 @@ class _BlueToast extends StatelessWidget {
   }
 }
 
-/// ===== NỀN GRADIENT (giống Login) =====
 class _RegisterGradientBg extends StatelessWidget {
   const _RegisterGradientBg();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -268,15 +326,15 @@ class _RegisterGradientBg extends StatelessWidget {
   }
 }
 
-/// ===== TIÊU ĐỀ =====
 class _RegisterTitle extends StatelessWidget {
   const _RegisterTitle();
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: const [
         Text(
-          'Xin mời đăng ký',
+          'Xin moi dang ky',
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w700,
@@ -284,7 +342,11 @@ class _RegisterTitle extends StatelessWidget {
             shadows: [
               Shadow(color: Colors.white70, blurRadius: 14),
               Shadow(color: Colors.white24, blurRadius: 28),
-              Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 1)),
+              Shadow(
+                color: Colors.black54,
+                blurRadius: 6,
+                offset: Offset(0, 1),
+              ),
             ],
           ),
         ),
@@ -293,7 +355,6 @@ class _RegisterTitle extends StatelessWidget {
   }
 }
 
-/// ===== Ô nhập nền tối bo tròn =====
 class _RegDarkField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -301,6 +362,7 @@ class _RegDarkField extends StatelessWidget {
   final bool obscureText;
   final IconData? icon;
   final Widget? suffix;
+
   const _RegDarkField({
     required this.controller,
     required this.label,
@@ -340,11 +402,12 @@ class _RegDarkField extends StatelessWidget {
   }
 }
 
-/// ===== Nút phát sáng =====
 class _RegGlowButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final Widget child;
+
   const _RegGlowButton({required this.onPressed, required this.child});
+
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
@@ -355,7 +418,7 @@ class _RegGlowButton extends StatelessWidget {
             blurRadius: 18,
             spreadRadius: 1,
             offset: Offset(0, 6),
-          )
+          ),
         ],
       ),
       child: ElevatedButton(

@@ -1,0 +1,12 @@
+﻿[
+  {
+     relation: [delegate_permission/common.handle_all_urls],
+    target: {
+      namespace: android_app,
+      package_name: com.xanhnow.xanhnow_mobile,
+      sha256_cert_fingerprints: [
+        46:EC:82:CE:48:2A:C7:FC:A5:E0:94:FC:DA:49:A2:7E:9A:CF:C0:32:2D:F7:B8:6B:CF:4F:A4:B6:84:0C:7E:B1
+      ]
+    }
+  }
+]

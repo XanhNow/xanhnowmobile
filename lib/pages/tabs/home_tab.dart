@@ -6,21 +6,26 @@ class HomeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final actions = [
-      _HomeAction(icon: Icons.assignment_turned_in_rounded, label: 'Giao việc', onTap: () {}),
-      _HomeAction(icon: Icons.groups_rounded, label: 'Thành viên', onTap: () {}),
-      _HomeAction(icon: Icons.account_circle_rounded, label: 'Hồ sơ', onTap: () {}),
-      // sau này thêm thoải mái...
+      _HomeAction(icon: Icons.assignment_turned_in_rounded, label: 'Giao viec', onTap: () {}),
+      _HomeAction(icon: Icons.groups_rounded, label: 'Thanh vien', onTap: () {}),
+      _HomeAction(icon: Icons.account_circle_rounded, label: 'Ho so', onTap: () {}),
+      _HomeAction(
+        icon: Icons.lock_reset_rounded,
+        label: 'Doi mat khau',
+        onTap: () => Navigator.pushNamed(context, '/change-password'),
+      ),
+      // Them chuc nang khac tai day...
     ];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Trang chủ'),
+        title: const Text('Trang chu'),
         centerTitle: true,
       ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: GridView.count(
-          crossAxisCount: 3, // 3 nút/ hàng
+          crossAxisCount: 3,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
           childAspectRatio: .95,
@@ -54,7 +59,13 @@ class _HomeAction extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: Colors.green.shade100),
-          boxShadow: const [BoxShadow(color: Color(0x1A000000), blurRadius: 8, offset: Offset(0, 2))],
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

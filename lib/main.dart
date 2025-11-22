@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'pages/login_page.dart';
 import 'pages/root_scaffold.dart';
 import 'pages/register_page.dart';
+import 'pages/change_password_page.dart';
+import 'pages/forgot_password_page.dart';
 
 void main() {
   runApp(const XanhNowApp());
@@ -25,6 +27,8 @@ class XanhNowApp extends StatelessWidget {
         '/login': (_) => const LoginPage(),
         '/root': (_) => const RootScaffold(),
         '/register': (_) => const RegisterPage(),
+        '/change-password': (_) => const ChangePasswordPage(),
+        '/forgot-password': (_) => const ForgotPasswordPage(),
       },
     );
   }
